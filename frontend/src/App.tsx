@@ -10,18 +10,15 @@ function App() {
   const [gameJoined, setGameJoined] = useState(false);
 
   useEffect(() => {
-    socket.on('connect', () => {
-      setConnected(true);
-      console.log('Connected to server');
-    });
+    const handleConnect = () => setConnected(true);
+    const handleDisconnect = () => setConnected(false);
 
-    socket.on('disconnect', () => {
-      setConnected(false);
-      console.log('Disconnected from server');
-    });
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
 
     return () => {
-      socket.disconnect();
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
     };
   }, []);
 
@@ -36,11 +33,11 @@ function App() {
     <div className="App">
       <h1>Cat Murder Mystery Game 🐱🔍</h1>
       <p>Status: {connected ? '🟢 Connected' : '🔴 Disconnected'}</p>
-      
+
       {!gameJoined ? (
         <div>
-          <input 
-            type="text" 
+          <input
+            type="text"
             placeholder="Enter your name"
             value={playerName}
             onChange={(e) => setPlayerName(e.target.value)}
