@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import './App.css';
+import BoardView from "./components/BoardView";
 
 const socket = io('http://localhost:3001');
 
@@ -52,6 +53,7 @@ function App() {
           <p>Game lobby - waiting for other players...</p>
         </div>
       )}
+      <BoardView />
     </div>
   );
 }
