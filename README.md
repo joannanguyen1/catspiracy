@@ -4,10 +4,13 @@ Cats Galore
 
 To run
 
-cd in to /backend
-run npm i
-run npm run dev
+```bash
+# Backend
+cd backend
+npm install
+npm run dev
 
-cd into /frontend
-run npm i
-run npm run dev
+# Frontend (open a new terminal)
+cd frontend
+npm install
+npm run dev
