@@ -1,0 +1,68 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Game {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique
+  status    String   @default("lobby") // lobby, playing, voting, finished
+  createdAt DateTime @default(now())
+  startedAt DateTime?
+  endedAt   DateTime?
+
+  players         Player[]
+  clueDiscoveries ClueDiscovery[]
+  votes           Vote[]
+}
+
+model Player {
+  id           Int      @id @default(autoincrement())
+  gameId       Int
+  game         Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  socketId     String
+  playerName   String
+  role         String?  // detective, murderer
+  positionRoom String?
+  createdAt    DateTime @default(now())
+
+  clueDiscoveries ClueDiscovery[]
+  votesCast       Vote[] @relation("VoterRelation")
+  votesReceived   Vote[] @relation("SuspectRelation")
+
+  @@index([gameId])
+  @@index([socketId])
+}
+
+model ClueDiscovery {
+  id             Int      @id @default(autoincrement())
+  gameId         Int
+  game           Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  roomName       String
+  clueText       String
+  discoveredById Int
+  discoveredBy   Player   @relation(fields: [discoveredById], references: [id], onDelete: Cascade)
+  discoveredAt   DateTime @default(now())
+
+  @@index([gameId])
+}
+
+model Vote {
+  id        Int      @id @default(autoincrement())
+  gameId    Int
+  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  voterId   Int
+  voter     Player   @relation("VoterRelation", fields: [voterId], references: [id], onDelete: Cascade)
+  suspectId Int
+  suspect   Player   @relation("SuspectRelation", fields: [suspectId], references: [id], onDelete: Cascade)
+  votedAt   DateTime @default(now())
+
+  @@index([gameId])
+}
