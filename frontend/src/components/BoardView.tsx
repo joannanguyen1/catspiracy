@@ -21,7 +21,19 @@ const ROOM_LABELS: Record<string, string> = {
   "bottom-right": "Nap Chamber",
 };
 
-export default function BoardView() {
+type BoardViewProps = {
+  clueRoomNames?: string[];
+  isMyTurn?: boolean;
+  roomsCollected?: string[];
+  onRoomClick?: (roomName: string) => void;
+};
+
+export default function BoardView({
+  clueRoomNames = [],
+  isMyTurn = false,
+  roomsCollected = [],
+  onRoomClick,
+}: BoardViewProps) {
   const size = 28;
   const total = size * size;
 
@@ -114,6 +126,43 @@ export default function BoardView() {
             );
           })}
         </div>
+
+        {onRoomClick && clueRoomNames.length > 0 && (
+          <div style={styles.clickLayer}>
+            {rooms
+              .filter((room) => clueRoomNames.includes(room.name))
+              .map((room) => {
+                const collected = roomsCollected.includes(room.name);
+                const canClick = isMyTurn && !collected;
+                const top = (room.r1 / size) * 100;
+                const left = (room.c1 / size) * 100;
+                const width = ((room.c2 - room.c1 + 1) / size) * 100;
+                const height = ((room.r2 - room.r1 + 1) / size) * 100;
+
+                return (
+                  <div
+                    key={`click-${room.name}`}
+                    role="button"
+                    tabIndex={canClick ? 0 : -1}
+                    aria-label={collected ? `Clue found in ${ROOM_LABELS[room.name] ?? room.name}` : `Search for clue in ${ROOM_LABELS[room.name] ?? room.name}`}
+                    style={{
+                      position: "absolute",
+                      top: `${top}%`,
+                      left: `${left}%`,
+                      width: `${width}%`,
+                      height: `${height}%`,
+                      cursor: canClick ? "pointer" : "default",
+                      opacity: collected ? 0.4 : 1,
+                      background: canClick ? "rgba(255,255,255,0.15)" : "transparent",
+                      borderRadius: 4,
+                    }}
+                    onClick={() => canClick && onRoomClick(room.name)}
+                    onKeyDown={(e) => canClick && (e.key === "Enter" || e.key === " ") && onRoomClick(room.name)}
+                  />
+                );
+              })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -141,15 +190,21 @@ const styles: Record<string, React.CSSProperties> = {
     pointerEvents: "none",
     zIndex: 10,
   },
+  clickLayer: {
+    position: "absolute",
+    inset: 0,
+    zIndex: 5,
+  },
   labelPill: {
     position: "absolute",
     transform: "translate(-50%, -50%)",
     padding: "4px 10px",
     borderRadius: 999,
-    background: "rgba(255,255,255,0.85)",
-    border: "1px solid black",
+    background: "rgba(255,255,255,0.9)",
+    border: "1px solid #333",
     fontSize: 12,
     fontWeight: 700,
     whiteSpace: "nowrap",
+    color: "#1a1a1a",
   },
 };

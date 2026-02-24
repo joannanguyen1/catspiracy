@@ -1,42 +1,402 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+/* Lobby: centered card */
+.App.lobby-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background-color: #e5e5e5;
+}
+
+.lobby-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  padding: 40px 48px;
+  max-width: 420px;
+  width: 100%;
   text-align: center;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.lobby-card .cat-icon-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
+  color: #1a1a1a;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.lobby-card .game-title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  margin: 0 0 4px;
+  color: #1a1a1a;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.lobby-card .tagline {
+  font-size: 0.95rem;
+  color: #444;
+  margin: 0 0 28px;
 }
 
-.card {
-  padding: 2em;
+.lobby-card .field-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: left;
+  margin-bottom: 6px;
+  color: #1a1a1a;
 }
 
-.read-the-docs {
-  color: #888;
+.lobby-card .field {
+  margin-bottom: 16px;
+}
+
+.lobby-card .btn-create {
+  width: 100%;
+  padding: 12px 20px;
+  background: #2d2d2d;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.lobby-card .btn-create:hover:not(:disabled) {
+  background: #1a1a1a;
+}
+
+.lobby-divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 24px 0 20px;
+  color: #666;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+.lobby-divider::before,
+.lobby-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #ccc;
+}
+
+.join-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.join-row .field {
+  flex: 1;
+  margin-bottom: 0;
+}
+.join-row .field-label {
+  margin-bottom: 4px;
+}
+.lobby-card .btn-join {
+  padding: 10px 20px;
+  background: #f0f0f0;
+  color: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.lobby-card .btn-join:hover:not(:disabled) {
+  background: #e0e0e0;
+}
+
+.lobby-error {
+  color: #b91c1c;
+  font-size: 0.9rem;
+  margin-top: 12px;
+}
+
+/* Waiting room (after join, before start) */
+.waiting-room-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  padding: 32px 40px;
+  max-width: 440px;
+  width: 100%;
+  text-align: center;
+}
+.waiting-room-card .cat-icon-wrap { margin-bottom: 8px; color: #1a1a1a; }
+.waiting-room-card .game-title { font-size: 1.5rem; font-weight: 800; margin: 0 0 4px; }
+.waiting-room-card .game-code-display {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  margin: 16px 0;
+  padding: 8px 16px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  display: inline-block;
+}
+.waiting-room-card .players-list {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 24px;
+  text-align: left;
+}
+.waiting-room-card .players-list li {
+  padding: 6px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 0.95rem;
+}
+.waiting-room-card .btn-start {
+  width: 100%;
+  padding: 12px;
+  background: #2d2d2d;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+}
+.waiting-room-card .btn-start:hover:not(:disabled) { background: #1a1a1a; }
+
+/* Game layout */
+.App.game-screen {
+  min-height: 100vh;
+  background: #e5e5e5;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.game-header {
+  background: #2d2d2d;
+  color: #facc15;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  font-size: 1.25rem;
+}
+.game-header .timer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.game-main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 220px 1fr 280px;
+  grid-template-rows: auto 1fr;
+  gap: 0;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 20px;
+}
+
+.game-panel {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  padding: 20px;
+  border: 1px solid #eee;
+}
+
+.game-panel.suspects {
+  grid-row: 1 / -1;
+}
+.game-panel.suspects h3,
+.game-panel.map-panel h3,
+.game-panel.objectives h3,
+.game-panel.log-panel h3 {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  margin: 0 0 16px;
+  color: #1a1a1a;
+}
+
+.suspects-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.suspect-card {
+  display: block;
+  width: 100%;
+  text-align: center;
+  padding: 12px 8px;
+  border: 2px solid #eee;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  background: white;
+  font: inherit;
+}
+.suspect-card:hover {
+  border-color: #ccc;
+  background: #fafafa;
+}
+.suspect-card:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.suspect-card .avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  margin: 0 auto 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1rem;
+  color: white;
+}
+.suspect-card .name {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.suspect-note {
+  margin-top: 16px;
+  padding: 10px;
+  background: #fef9c3;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  text-align: left;
+}
+
+.game-panel.map-panel {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  display: flex;
+  flex-direction: column;
+}
+.map-panel .clues-badge {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.map-panel .map-instruction {
+  font-size: 0.8rem;
+  color: #555;
+  margin-top: 12px;
+}
+
+.game-panel.objectives {
+  grid-column: 3;
+  grid-row: 1;
+}
+.objectives ul {
+  margin: 0 0 16px;
+  padding-left: 20px;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+.server-status {
+  padding: 10px 12px;
+  background: #dbeafe;
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+.server-status .game-id { font-weight: 700; }
+
+.game-panel.log-panel {
+  grid-column: 3;
+  grid-row: 2;
+  background: #2d2d2d;
+  color: white;
+}
+.log-panel h3 { color: white; }
+.log-content {
+  font-size: 0.85rem;
+  min-height: 120px;
+  white-space: pre-wrap;
+}
+
+.turn-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.turn-badge.my-turn { background: #86efac; color: #166534; }
+.turn-badge.other-turn { background: #e5e7eb; color: #374151; }
+
+/* Lost screen */
+.App.lost-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #e5e5e5;
+}
+.lost-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  padding: 48px;
+  max-width: 400px;
+  text-align: center;
+}
+.lost-card h2 { margin: 0 0 12px; font-size: 1.5rem; }
+.lost-card p { margin: 0 0 20px; color: #555; }
+.lost-card .btn-play-again { margin-top: 0; }
+
+.App.won-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #e5e5e5;
+}
+.won-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  padding: 48px;
+  max-width: 420px;
+  text-align: center;
+  border: 2px solid #16a34a;
+}
+.won-card h2 { margin: 0 0 12px; font-size: 1.5rem; color: #15803d; }
+.won-card p { margin: 0 0 20px; color: #555; }
+.won-card .btn-play-again { margin-top: 0; }
+
+.btn-play-again {
+  display: inline-block;
+  padding: 12px 24px;
+  background: #2d2d2d;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-play-again:hover {
+  background: #1a1a1a;
+}
+
+#root {
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
 }

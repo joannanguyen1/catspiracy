@@ -11,12 +11,18 @@ datasource db {
 }
 
 model Game {
-  id        Int      @id @default(autoincrement())
-  code      String   @unique
-  status    String   @default("lobby") // lobby, playing, voting, finished
-  createdAt DateTime @default(now())
-  startedAt DateTime?
-  endedAt   DateTime?
+  id                 Int      @id @default(autoincrement())
+  code               String   @unique
+  status             String   @default("lobby") // lobby, playing, voting, won, lost
+  createdAt          DateTime @default(now())
+  startedAt          DateTime?
+  endedAt            DateTime?
+  hostPlayerId       Int?
+  host               Player?  @relation("HostRelation", fields: [hostPlayerId], references: [id], onDelete: SetNull)
+  currentTurnPlayerId Int?
+  currentTurn        Player?  @relation("CurrentTurnRelation", fields: [currentTurnPlayerId], references: [id], onDelete: SetNull)
+  murdererCatId      String?  // which of the 6 cats is the murderer
+  remainingSeconds   Int?     // 5-min countdown (300)
 
   players         Player[]
   clueDiscoveries ClueDiscovery[]
@@ -29,10 +35,12 @@ model Player {
   game         Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
   socketId     String
   playerName   String
-  role         String?  // detective, murderer
+  role         String?  // detective (all players are detectives in this game)
   positionRoom String?
   createdAt    DateTime @default(now())
 
+  gamesHosted     Game[] @relation("HostRelation")
+  gamesCurrentTurn Game[] @relation("CurrentTurnRelation")
   clueDiscoveries ClueDiscovery[]
   votesCast       Vote[] @relation("VoterRelation")
   votesReceived   Vote[] @relation("SuspectRelation")
