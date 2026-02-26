@@ -1,9 +1,9 @@
 :root {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: 'Crimson Text', Georgia, 'Times New Roman', serif;
   line-height: 1.5;
   font-weight: 400;
   color: #1a1a1a;
-  background-color: #e5e5e5;
+  background-color: #0c0c16;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
