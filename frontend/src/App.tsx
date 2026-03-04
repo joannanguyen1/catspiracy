@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 import './App.css';
 import BoardView from './components/BoardView';
 import CatIcon from './components/CatIcon';
+import MinigameModal from './components/minigames/MinigameModal';
 import { getCatDisplayName, getCatAvatarColor, getCatInitial } from './constants/cats';
 
 const socket = io(
@@ -21,6 +22,7 @@ type GameStartedPayload = {
   catIds: string[];
   cluesCollectedCount: number;
   roomsCollected?: string[];
+  clueRoomNames?: string[];
 };
 
 function App() {
@@ -37,6 +39,7 @@ function App() {
   const [gameState, setGameState] = useState<GameStartedPayload | null>(null);
   const [gameLog, setGameLog] = useState<string>('Waiting for game to start...');
   const [winPayload, setWinPayload] = useState<{ murdererCatId: string; voterName: string } | null>(null);
+  const [minigameOpen, setMinigameOpen] = useState<{ roomName: string; gameIndex: number } | null>(null);
 
   const resetToLobby = () => {
     setGameJoined(false);
@@ -370,14 +373,30 @@ function App() {
             </span>
             <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
               <BoardView
-                clueRoomNames={['left-mid', 'center', 'top-right', 'bottom-left']}
+                clueRoomNames={gameState.clueRoomNames ?? []}
                 isMyTurn={isMyTurn}
                 roomsCollected={gameState.roomsCollected ?? []}
-                onRoomClick={(roomName: string) => socket.emit('collect_clue', { roomName })}
+                onRoomClick={(roomName: string) => {
+                  const clueRoomNames = gameState.clueRoomNames ?? [];
+                  const gameIndex = clueRoomNames.indexOf(roomName);
+                  setMinigameOpen({ roomName, gameIndex: gameIndex >= 0 ? gameIndex : 0 });
+                }}
               />
             </div>
+            {minigameOpen && (
+              <MinigameModal
+                roomName={minigameOpen.roomName}
+                roomLabel=""
+                gameIndex={minigameOpen.gameIndex}
+                onSuccess={() => {
+                  socket.emit('collect_clue', { roomName: minigameOpen.roomName });
+                  setMinigameOpen(null);
+                }}
+                onCancel={() => setMinigameOpen(null)}
+              />
+            )}
             <p className="map-instruction">
-              Click a location to use 1 turn and search for clues.
+              Click a location, complete the mini-game to search for a clue.
             </p>
             <div>
               {isMyTurn ? (

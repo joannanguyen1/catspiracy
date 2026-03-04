@@ -32,20 +32,53 @@ function stopGameTimer(gameCode: string) {
 // 6 cat suspects; one is randomly chosen as murderer per game
 const CAT_IDS = ['whiskers', 'shadow', 'mittens', 'tiger', 'luna', 'oliver'];
 
-// 4 rooms that contain clues (must match frontend board room names)
-const CLUE_ROOMS = ['left-mid', 'center', 'top-right', 'bottom-left'] as const;
-const CLUE_TEXTS: Record<string, string> = {
-  'left-mid': 'A paw print near the fish bowl.',
-  center: 'Fish scales on the floor.',
-  'top-right': 'A napkin with fish oil.',
-  'bottom-left': 'A whisker by the sofa.',
-};
+// All board rooms (must match frontend BoardView)
+const ALL_BOARD_ROOMS = [
+  'top-left', 'top-mid', 'top-right',
+  'left-mid', 'center', 'right-mid',
+  'bottom-left', 'bottom-mid', 'bottom-right',
+];
+
+const CLUE_TEXT_POOL = [
+  'A paw print near the fish bowl.',
+  'Fish scales on the floor.',
+  'A napkin with fish oil.',
+  'A whisker by the sofa.',
+  'Tuna crumbs under the table.',
+  'A suspicious hair on the carpet.',
+  'Scratches on the cabinet.',
+  'A dropped collar tag.',
+  'Fish-scented breath on the window.',
+];
+
 const ROOM_DISPLAY_NAMES: Record<string, string> = {
+  'top-left': 'Cat Tower',
+  'top-mid': 'Sunbeam Deck',
+  'top-right': 'Dining Room',
   'left-mid': 'Kitchen',
   center: 'Fish Tank',
-  'top-right': 'Dining Room',
+  'right-mid': 'Yarn Vault',
   'bottom-left': 'Litter Kingdom',
+  'bottom-mid': 'Basement Box Fort',
+  'bottom-right': 'Nap Chamber',
 };
+
+type GameClueAssignment = { roomToClue: Record<string, string>; clueRoomNames: string[] };
+const gameClueAssignments = new Map<string, GameClueAssignment>();
+
+function shuffle<T>(arr: T[]): T[] {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const a = out[i];
+    const b = out[j];
+    if (a !== undefined && b !== undefined) {
+      out[i] = b;
+      out[j] = a;
+    }
+  }
+  return out;
+}
 
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -159,6 +192,13 @@ io.on('connection', (socket) => {
           startedAt: new Date(),
         },
       });
+      const shuffledRooms = shuffle([...ALL_BOARD_ROOMS]).slice(0, 4);
+      const shuffledClues = shuffle([...CLUE_TEXT_POOL]).slice(0, 4);
+      const roomToClue: Record<string, string> = {};
+      shuffledRooms.forEach((room, i) => {
+        roomToClue[room] = shuffledClues[i] ?? 'A clue was found.';
+      });
+      gameClueAssignments.set(gameCode, { roomToClue, clueRoomNames: shuffledRooms });
       const payload = {
         status: 'playing' as const,
         players: game.players.map((p) => ({
@@ -170,6 +210,7 @@ io.on('connection', (socket) => {
         remainingSeconds: 300,
         catIds: [...CAT_IDS],
         cluesCollectedCount: 0,
+        clueRoomNames: shuffledRooms,
       };
       io.to(getRoom(gameCode)).emit('game_started', payload);
       console.log('Game started:', gameCode);
@@ -236,7 +277,8 @@ io.on('connection', (socket) => {
         socket.emit('clue_error', { message: 'Invalid request' });
         return;
       }
-      if (!CLUE_ROOMS.includes(roomName as (typeof CLUE_ROOMS)[number])) {
+      const assignment = gameClueAssignments.get(gameCode);
+      if (!assignment || !assignment.roomToClue[roomName]) {
         socket.emit('clue_error', { message: 'No clue in this room' });
         return;
       }
@@ -264,7 +306,7 @@ io.on('connection', (socket) => {
         socket.emit('clue_error', { message: 'Clue already collected here' });
         return;
       }
-      const clueText = CLUE_TEXTS[roomName] ?? 'A clue was found.';
+      const clueText = assignment.roomToClue[roomName] ?? 'A clue was found.';
       await prisma.clueDiscovery.create({
         data: {
           gameId: game.id,
@@ -396,6 +438,7 @@ io.on('connection', (socket) => {
           });
           if (remaining === 0) {
             stopGameTimer(gameCode);
+            gameClueAssignments.delete(gameCode);
             await prisma.game.delete({ where: { id: player.gameId } });
             console.log('Game ended:', gameCode);
           }

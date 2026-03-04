@@ -465,6 +465,166 @@
   background: #1a1a1a;
 }
 
+/* Minigame modal */
+.minigame-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+.minigame-modal {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 380px;
+  width: 100%;
+  max-height: 90vh;
+  overflow: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+.minigame-title {
+  margin: 0 0 16px;
+  font-size: 1.1rem;
+}
+.minigame-goal {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  color: #444;
+}
+.minigame-result {
+  margin: 0 0 12px;
+  font-weight: 600;
+  color: #15803d;
+}
+.minigame-done, .minigame-cancel {
+  margin-top: 12px;
+  margin-right: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+.minigame-done { background: #16a34a; color: white; }
+.minigame-done:hover { background: #15803d; }
+.minigame-cancel { background: #e5e7eb; color: #374151; }
+.minigame-cancel:hover { background: #d1d5db; }
+
+/* Tic-tac-toe */
+.minigame-ttt-start {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.minigame-ttt-start button {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 2px solid #e5e7eb;
+  background: white;
+  cursor: pointer;
+  font-weight: 600;
+}
+.minigame-ttt-start button:hover { border-color: #2563eb; background: #eff6ff; }
+.minigame-ttt-board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  margin-bottom: 12px;
+  max-width: 200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.minigame-ttt-board-4x4 {
+  grid-template-columns: repeat(4, 1fr);
+  max-width: 260px;
+}
+.minigame-ttt-cell {
+  aspect-ratio: 1;
+  font-size: 1.5rem;
+  font-weight: 700;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafafa;
+  cursor: pointer;
+}
+.minigame-ttt-cell:hover:not(:disabled) { background: #f3f4f6; border-color: #2563eb; }
+.minigame-ttt-cell:disabled { cursor: default; }
+
+/* 2048 */
+.minigame-2048-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  max-width: 240px;
+  margin: 0 auto 12px;
+}
+.minigame-2048-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.25rem;
+  border-radius: 6px;
+  background: #e5e7eb;
+}
+.minigame-2048-cell[data-value="2"] { background: #fef3c7; }
+.minigame-2048-cell[data-value="4"] { background: #fde68a; }
+.minigame-2048-cell[data-value="8"] { background: #fcd34d; }
+.minigame-2048-cell[data-value="16"] { background: #fbbf24; }
+.minigame-2048-cell[data-value="32"] { background: #f59e0b; }
+.minigame-2048-cell[data-value="64"] { background: #d97706; }
+.minigame-2048-cell[data-value="128"] { background: #fcd34d; font-size: 1rem; }
+.minigame-2048-cell[data-value="256"] { background: #f59e0b; color: white; font-size: 1rem; }
+.minigame-2048-max { margin: 0 0 8px; font-size: 0.85rem; color: #666; }
+
+/* Memory match */
+.minigame-memory-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.minigame-memory-card {
+  aspect-ratio: 1;
+  font-size: 1.5rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f3f4f6;
+  cursor: pointer;
+}
+.minigame-memory-card:hover:not(:disabled) { border-color: #2563eb; background: #eff6ff; }
+.minigame-memory-card:disabled { cursor: default; }
+
+/* Sequence */
+.minigame-sequence-wrong {
+  color: #dc2626;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.minigame-sequence-buttons {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.minigame-sequence-btn {
+  padding: 12px 20px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+}
+.minigame-sequence-btn:hover:not(:disabled) { border-color: #2563eb; background: #eff6ff; }
+.minigame-sequence-btn[data-highlight="true"] { background: #fde68a; border-color: #f59e0b; }
+
 #root {
   max-width: 100%;
   margin: 0;
