@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import './App.css';
+import tralalerGif from './assets/Tralelo idling.gif';
 import BoardView from './components/BoardView';
 import CatIcon from './components/CatIcon';
 import MinigameModal from './components/minigames/MinigameModal';
-import { getCatDisplayName, getCatAvatarColor, getCatInitial } from './constants/cats';
+import { getCatDisplayName, getCatAvatarColor, getCatInitial, getCatImage, DETECTIVE_CHARACTERS, type DetectiveCharacter } from './constants/cats';
 
 const socket = io(
   typeof window !== 'undefined'
@@ -42,7 +43,10 @@ function App() {
   const [players, setPlayers] = useState<LobbyPlayer[]>([]);
   const [joinError, setJoinError] = useState('');
   const [startError, setStartError] = useState('');
-  const [gameStatus, setGameStatus] = useState<'lobby' | 'playing' | 'lost' | 'won'>('lobby');
+  const [gameStatus, setGameStatus] = useState<'lobby' | 'intro' | 'playing' | 'lost' | 'won'>('lobby');
+  const [selectedDetective, setSelectedDetective] = useState<DetectiveCharacter | null>(null);
+  // socketId → detectiveId for all players currently on the intro screen
+  const [detectiveSelections, setDetectiveSelections] = useState<Record<string, string>>({});
   const [gameState, setGameState] = useState<GameStartedPayload | null>(null);
   const [gameLog, setGameLog] = useState<string>('Waiting for game to start...');
   const [winPayload, setWinPayload] = useState<{ murdererCatId: string; voterName: string } | null>(null);
@@ -65,6 +69,8 @@ function App() {
     setJoinError('');
     setEliminatedCatIds([]);
     setOtherPlayers({});
+    setSelectedDetective(null);
+    setDetectiveSelections({});
   };
 
   useEffect(() => {
@@ -96,11 +102,11 @@ function App() {
       setJoinError(data.message ?? 'Failed to join');
     });
     socket.on('game_started', (data: GameStartedPayload) => {
-      setGameStatus('playing');
       setGameState({ ...data, roomsCollected: data.roomsCollected ?? [] });
       setEliminatedCatIds([]);
       setStartError('');
       setGameLog('🐾 Game started! Walk your avatar into rooms to find clues.\n');
+      setGameStatus('intro');
     });
     socket.on('clue_found', (data: {
       roomName: string;
@@ -163,6 +169,9 @@ function App() {
         return next;
       });
     });
+    socket.on('detective_selections', (data: { selections: Record<string, string> }) => {
+      setDetectiveSelections(data.selections ?? {});
+    });
     return () => {
       socket.off('lobby_update');
       socket.off('game_created');
@@ -178,6 +187,7 @@ function App() {
       socket.off('clue_error');
       socket.off('player_moved');
       socket.off('player_left');
+      socket.off('detective_selections');
     };
   }, []);
 
@@ -373,11 +383,144 @@ function App() {
     );
   }
 
+  if (gameStatus === 'intro') {
+    return (
+      <div className="App lobby-screen">
+        <div className="intro-card">
+          <div className="intro-case-header">
+            <span className="intro-case-label">CASE FILE #001</span>
+            <h1 className="intro-case-title">The Disappearance of the Tralalero Tralala</h1>
+          </div>
+
+          <div className="intro-story">
+            <p>
+              A terrible crime has been committed at <strong>Whisker Manor</strong>. The prized
+              Tralalero Tralala — prepared for the Annual Feast of Felines — has vanished without a
+              trace overnight.
+            </p>
+            <p>
+              Six suspicious cats were present at the manor last night. Each one claims
+              innocence, yet the evidence tells a different story. As an elite detective of the
+              Feline Bureau of Investigation, it falls to you to search every room, gather
+              clues, and unmask the fish thief.
+            </p>
+            <p className="intro-warning">
+              Be warned: a wrong accusation ends the investigation immediately. Choose wisely,
+              detective — the clock is ticking and the culprit grows bolder by the minute.
+            </p>
+          </div>
+
+          <div className="intro-tralala-wrap">
+            <div
+              className="intro-tralala-gif"
+              role="img"
+              aria-label="Tralalero Tralala"
+              style={{ backgroundImage: `url(${tralalerGif})` }}
+            />
+            <span className="intro-tralala-caption">Tralalero Tralala — Still at Large</span>
+          </div>
+
+          <div className="intro-divider">CHOOSE YOUR DETECTIVE</div>
+
+          <div className="intro-character-grid">
+            {DETECTIVE_CHARACTERS.map((cat) => {
+              const isMine = selectedDetective?.id === cat.id;
+              const takenByOther = Object.entries(detectiveSelections).some(
+                ([sid, did]) => did === cat.id && sid !== socket.id
+              );
+              return (
+              <button
+                key={cat.id}
+                type="button"
+                className={`intro-character-card${isMine ? ' selected' : ''}${takenByOther ? ' taken' : ''}`}
+                disabled={takenByOther}
+                onClick={() => {
+                  setSelectedDetective(cat);
+                  socket.emit('select_detective', { detectiveId: cat.id });
+                }}
+              >
+                <div className="intro-character-img-wrap">
+                  <img src={cat.image} alt={cat.name} className="intro-character-img" />
+                  {(isMine || takenByOther) && (
+                    <div className={`intro-paw-overlay${takenByOther ? ' intro-paw-overlay--taken' : ''}`}>
+                      <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                        <path
+                          fill="none"
+                          stroke="#ffffff"
+                          strokeMiterlimit={10}
+                          strokeWidth={7}
+                          d="M324.5,282.26c-11.49-19.8-36.22-33.5-64.9-33.5s-53.41,13.7-64.9,33.5c-20.53,9.58-33.5,23.62-33.5,39.28,0,28.87,44.05,52.27,98.4,52.27s98.4-23.4,98.4-52.27c0-15.66-12.97-29.7-33.5-39.28Z"
+                        />
+                        <ellipse
+                          fill="none"
+                          stroke="#ffffff"
+                          strokeMiterlimit={10}
+                          strokeWidth={7}
+                          cx="295.77" cy="176.77" rx="38.75" ry="29.72"
+                          transform="translate(55.53 423.78) rotate(-76.66)"
+                        />
+                        <ellipse
+                          fill="none"
+                          stroke="#ffffff"
+                          strokeMiterlimit={10}
+                          strokeWidth={7}
+                          cx="212.93" cy="176.77" rx="29.72" ry="38.75"
+                          transform="translate(-35.04 53.89) rotate(-13.34)"
+                        />
+                        <ellipse
+                          fill="none"
+                          stroke="#ffffff"
+                          strokeMiterlimit={10}
+                          strokeWidth={7}
+                          cx="148.91" cy="240.32" rx="26.12" ry="34.05"
+                          transform="translate(-100.21 106.65) rotate(-30)"
+                        />
+                        <ellipse
+                          fill="none"
+                          stroke="#ffffff"
+                          strokeMiterlimit={10}
+                          strokeWidth={7}
+                          cx="363.09" cy="231.51" rx="34.05" ry="26.12"
+                          transform="translate(-18.94 430.2) rotate(-60)"
+                        />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                <span className="intro-character-name">{cat.name}</span>
+                <span className="intro-character-title">{cat.title}</span>
+              </button>
+            );})}
+          </div>
+
+          <button
+            type="button"
+            className="btn-begin"
+            disabled={!selectedDetective}
+            onClick={() => setGameStatus('playing')}
+          >
+            {selectedDetective
+              ? `Begin Investigation as ${selectedDetective.name}`
+              : 'Select a detective to begin'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // ——— Playing: header + panels (suspects | map | objectives + log) ———
   if (gameStatus === 'playing' && gameState) {
     const isMyTurn = gameState.currentTurnSocketId === socket.id;
     const minutes = Math.floor(gameState.remainingSeconds / 60);
     const seconds = gameState.remainingSeconds % 60;
+
+    // Map each socketId to its chosen detective's image for board avatars
+    const otherPlayerImages: Record<string, string> = {};
+    Object.entries(detectiveSelections).forEach(([sid, detectiveId]) => {
+      const detective = DETECTIVE_CHARACTERS.find((d) => d.id === detectiveId);
+      if (detective) otherPlayerImages[sid] = detective.image;
+    });
+    const myPlayerIndex = Math.max(0, gameState.players.findIndex((p) => p.socketId === socket.id));
 
     return (
       <div className="App game-screen">
@@ -401,11 +544,16 @@ function App() {
                     key={id}
                     className={`suspect-row${eliminated ? ' suspect-eliminated' : ''}`}
                   >
-                    <div
-                      className="avatar"
-                      style={{ background: eliminated ? '#bbb' : getCatAvatarColor(id) }}
-                    >
-                      {eliminated ? '✓' : getCatInitial(id)}
+                    <div className={`avatar${eliminated ? ' avatar-eliminated' : ''}`}>
+                      {eliminated ? (
+                        <span className="avatar-check">✓</span>
+                      ) : (
+                        <img
+                          src={getCatImage(id) ?? ''}
+                          alt={getCatDisplayName(id)}
+                          className="avatar-img"
+                        />
+                      )}
                     </div>
                     <span className="suspect-name">{getCatDisplayName(id)}</span>
                     {eliminated ? (
@@ -450,6 +598,9 @@ function App() {
                 mySocketId={socket.id ?? ''}
                 otherPlayers={otherPlayers}
                 onMove={(row, col) => socket.emit('move_player', { row, col })}
+                myDetectiveImage={selectedDetective?.image}
+                otherPlayerImages={otherPlayerImages}
+                myPlayerIndex={myPlayerIndex}
               />
             </div>
             {minigameOpen && (

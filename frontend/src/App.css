@@ -237,6 +237,257 @@
 }
 .waiting-room-card .btn-start:hover:not(:disabled) { background: #882255; }
 
+/* Intro / character select screen */
+.intro-card {
+  position: relative;
+  background: #f8f4ee;
+  border: 2.5px solid #AA336A;
+  border-radius: 16px;
+  outline: 1.5px solid #AA336A;
+  outline-offset: -11px;
+  box-shadow:
+    0 0 0 6px rgba(170, 51, 106, 0.1),
+    0 28px 72px rgba(0, 0, 0, 0.75),
+    0 8px 24px rgba(0, 0, 0, 0.5);
+  padding: 40px 48px 44px;
+  max-width: 760px;
+  width: 100%;
+  text-align: center;
+  overflow: visible;
+}
+
+.intro-case-header {
+  margin-bottom: 24px;
+}
+
+.intro-case-label {
+  display: inline-block;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: #AA336A;
+  border: 1px solid #AA336A;
+  border-radius: 4px;
+  padding: 3px 10px;
+  margin-bottom: 10px;
+}
+
+.intro-case-title {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 1.65rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  color: #1a0505;
+  margin: 0;
+  line-height: 1.25;
+}
+
+.intro-story {
+  background: #fffdf9;
+  border: 1px solid #e8d0dc;
+  border-radius: 10px;
+  padding: 20px 24px;
+  margin-bottom: 6px;
+  text-align: left;
+}
+
+.intro-story p {
+  font-family: 'Crimson Text', Georgia, serif;
+  font-size: 1.08rem;
+  color: #2a0a14;
+  line-height: 1.7;
+  margin: 0 0 12px;
+}
+
+.intro-story p:last-child {
+  margin-bottom: 0;
+}
+
+.intro-warning {
+  font-style: italic;
+  color: #7a2a3a !important;
+  border-left: 3px solid #AA336A;
+  padding-left: 12px;
+}
+
+.intro-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 8px 0 20px;
+  color: #AA336A;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+.intro-divider::before,
+.intro-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #cc80a8;
+  opacity: 0.6;
+}
+
+.intro-character-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.intro-character-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 10px 12px;
+  background: #fffdf9;
+  border: 2px solid #e8d0dc;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+  font-family: inherit;
+}
+
+.intro-character-card:hover {
+  border-color: #AA336A;
+  background: #fdf0f6;
+  box-shadow: 0 2px 12px rgba(170, 51, 106, 0.15);
+}
+
+.intro-character-card.selected {
+  border-color: #AA336A;
+  background: #fdf0f6;
+  box-shadow:
+    0 0 0 3px rgba(170, 51, 106, 0.2),
+    0 2px 12px rgba(170, 51, 106, 0.2);
+}
+
+.intro-character-card.taken {
+  border-color: #c9b8bf;
+  background: #f2eef0;
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+.intro-character-card.taken:hover {
+  border-color: #c9b8bf;
+  background: #f2eef0;
+  box-shadow: none;
+}
+
+.intro-character-img-wrap {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+}
+
+.intro-character-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  display: block;
+}
+
+.intro-paw-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: rgba(136, 34, 85, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: paw-stamp 0.22s cubic-bezier(0.22, 1.5, 0.5, 1) both;
+}
+
+/* Taken-by-other variant: grey instead of raspberry */
+.intro-paw-overlay--taken {
+  background: rgba(80, 60, 70, 0.65);
+}
+
+.intro-paw-overlay svg {
+  width: 62px;
+  height: 62px;
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.45));
+}
+
+@keyframes paw-stamp {
+  0%   { transform: scale(1.6) rotate(-12deg); opacity: 0; }
+  60%  { transform: scale(0.92) rotate(4deg);  opacity: 1; }
+  100% { transform: scale(1)    rotate(0deg);  opacity: 1; }
+}
+
+.intro-character-name {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #1a0505;
+  line-height: 1.2;
+}
+
+.intro-character-title {
+  font-family: 'Crimson Text', Georgia, serif;
+  font-style: italic;
+  font-size: 0.85rem;
+  color: #AA336A;
+  line-height: 1.2;
+}
+
+.btn-begin {
+  width: 100%;
+  padding: 14px 20px;
+  background: #AA336A;
+  color: #f8f4ee;
+  border: none;
+  border-radius: 8px;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  transition: background 0.18s;
+  cursor: pointer;
+}
+.btn-begin:hover:not(:disabled) {
+  background: #882255;
+}
+.btn-begin:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Tralalero gif in intro ─────────────────────────────────── */
+.intro-tralala-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 6px 0 4px;
+}
+.intro-tralala-gif {
+  /* Rendered gif is 280px × 280px (square). The blue canvas padding is
+     ~70px on each vertical edge, so we window to the centre 140px. */
+  width: 280px;
+  height: 140px;
+  background-size: 280px 280px;
+  background-repeat: no-repeat;
+  background-position: center center;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 8px rgba(170,51,106,0.4));
+}
+.intro-tralala-caption {
+  font-family: 'Crimson Text', Georgia, serif;
+  font-size: 0.82rem;
+  color: #AA336A;
+  font-style: italic;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+}
+
 /* Game layout */
 .App.game-screen {
   height: 100vh;
@@ -359,16 +610,30 @@
   background: #fdf0f6;
 }
 .suspect-row .avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
-  font-size: 0.8rem;
-  color: white;
   flex-shrink: 0;
+  overflow: hidden;
+  background: #fdf0f6;
+  border: 1px solid #f0dce6;
+}
+.suspect-row .avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.suspect-row .avatar.avatar-eliminated {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+}
+.suspect-row .avatar-check {
+  font-size: 1rem;
+  color: #2e7d32;
+  font-weight: 700;
 }
 .suspect-row .suspect-name {
   flex: 1;

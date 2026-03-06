@@ -21,6 +21,8 @@ const socketToGame = new Map<string, string>();
 type GameTimer = { remainingSeconds: number; intervalId: ReturnType<typeof setInterval> };
 const gameTimers = new Map<string, GameTimer>();
 
+const gameDetectiveSelections = new Map<string, Map<string, string>>();
+
 function stopGameTimer(gameCode: string) {
   const timer = gameTimers.get(gameCode);
   if (timer) {
@@ -445,11 +447,37 @@ io.on('connection', (socket) => {
     socket.to(getRoom(gameCode)).emit('player_moved', { socketId: socket.id, row, col });
   });
 
+  socket.on('select_detective', (data: { detectiveId?: string }) => {
+    const gameCode = socketToGame.get(socket.id);
+    if (!gameCode) return;
+    const detectiveId = typeof data?.detectiveId === 'string' ? data.detectiveId.trim() : '';
+    if (!detectiveId) return;
+
+    if (!gameDetectiveSelections.has(gameCode)) {
+      gameDetectiveSelections.set(gameCode, new Map());
+    }
+    gameDetectiveSelections.get(gameCode)!.set(socket.id, detectiveId);
+
+    const selections = Object.fromEntries(gameDetectiveSelections.get(gameCode)!);
+    io.to(getRoom(gameCode)).emit('detective_selections', { selections });
+  });
+
   socket.on('disconnect', async () => {
     const gameCode = socketToGame.get(socket.id);
     socketToGame.delete(socket.id);
 
     if (gameCode) {
+      const selMap = gameDetectiveSelections.get(gameCode);
+      if (selMap) {
+        selMap.delete(socket.id);
+        if (selMap.size === 0) {
+          gameDetectiveSelections.delete(gameCode);
+        } else {
+          const selections = Object.fromEntries(selMap);
+          io.to(getRoom(gameCode)).emit('detective_selections', { selections });
+        }
+      }
+
       try {
         const player = await prisma.player.findFirst({
           where: { socketId: socket.id },
@@ -469,6 +497,7 @@ io.on('connection', (socket) => {
           if (remaining === 0) {
             stopGameTimer(gameCode);
             gameClueAssignments.delete(gameCode);
+            gameDetectiveSelections.delete(gameCode);
             await prisma.game.delete({ where: { id: player.gameId } });
             console.log('Game ended:', gameCode);
           }

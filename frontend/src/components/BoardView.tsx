@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { CAT_IMAGES } from "../constants/cats";
 
 type RectRoom = {
   name: string;
@@ -88,6 +89,16 @@ const AVATAR_START = roomCenter(FISH_TANK_ROOM);
 const ARROW_KEYS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
 // Colors for other players' avatars
 const PLAYER_COLORS = ["#2ecc71", "#e74c3c", "#3498db", "#f39c12", "#9b59b6"];
+
+// Suspects spread across rooms — rowFrac/colFrac are 0–1 within the room bounds
+const SUSPECT_ROOMS: Array<{ id: string; roomName: string; rowFrac: number; colFrac: number }> = [
+  { id: "whiskers", roomName: "top-left",     rowFrac: 0.2,  colFrac: 0.75 }, // top-right corner
+  { id: "shadow",   roomName: "top-mid",      rowFrac: 0.75, colFrac: 0.2  }, // bottom-left corner
+  { id: "mittens",  roomName: "left-mid",     rowFrac: 0.25, colFrac: 0.65 }, // upper-right area
+  { id: "tiger",    roomName: "right-mid",    rowFrac: 0.7,  colFrac: 0.3  }, // lower-left area
+  { id: "luna",     roomName: "bottom-left",  rowFrac: 0.3,  colFrac: 0.7  }, // upper-right area
+  { id: "oliver",   roomName: "bottom-right", rowFrac: 0.75, colFrac: 0.25 }, // lower-left corner
+];
 
 // ============================================================
 // Room SVG decorations (unchanged)
@@ -390,6 +401,18 @@ function RoomDecoration({ name }: { name: string }) {
   }
 }
 
+const PLAYER_START_OFFSETS = [
+  { row: 0, col: -1 }, 
+  { row: 0, col:  1 },  
+  { row: -1, col: 0 },  
+  { row:  1, col: 0 },  
+];
+
+function getPlayerStart(playerIndex: number) {
+  const offset = PLAYER_START_OFFSETS[playerIndex] ?? { row: 0, col: 0 };
+  return { row: AVATAR_START.row + offset.row, col: AVATAR_START.col + offset.col };
+}
+
 type BoardViewProps = {
   clueRoomNames?: string[];
   isMyTurn?: boolean;
@@ -399,6 +422,9 @@ type BoardViewProps = {
   mySocketId?: string;
   otherPlayers?: Record<string, { row: number; col: number }>;
   onMove?: (row: number, col: number) => void;
+  myDetectiveImage?: string;
+  otherPlayerImages?: Record<string, string>;
+  myPlayerIndex?: number;
 };
 
 export default function BoardView({
@@ -410,11 +436,14 @@ export default function BoardView({
   mySocketId,
   otherPlayers = {},
   onMove,
+  myDetectiveImage,
+  otherPlayerImages = {},
+  myPlayerIndex = 0,
 }: BoardViewProps) {
-  const [avatarPos, setAvatarPos] = useState(AVATAR_START);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const playerStart = getPlayerStart(myPlayerIndex);
+  const [avatarPos, setAvatarPos] = useState(playerStart);
 
-  const avatarPosRef = useRef(AVATAR_START);
+  const avatarPosRef = useRef(playerStart);
   const onMoveRef = useRef(onMove);
   const onRoomClickRef = useRef(onRoomClick);
   const clueRoomNamesRef = useRef(clueRoomNames);
@@ -428,6 +457,7 @@ export default function BoardView({
 
   useEffect(() => {
     if (!showAvatar) return;
+    onMoveRef.current?.(playerStart.row, playerStart.col);
     const onKeyDown = (e: KeyboardEvent) => {
       if (!ARROW_KEYS.includes(e.key)) return;
       if (!isMyTurnRef.current) return;
@@ -473,15 +503,6 @@ export default function BoardView({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [showAvatar]);
 
-  useEffect(() => {
-    if (!isExpanded) return;
-    const onEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setIsExpanded(false);
-    };
-    window.addEventListener("keydown", onEsc);
-    return () => window.removeEventListener("keydown", onEsc);
-  }, [isExpanded]);
-
   const size = GRID_SIZE;
   const total = size * size;
 
@@ -494,43 +515,19 @@ export default function BoardView({
     };
   }
 
-  const wrapperStyle: React.CSSProperties = isExpanded
-    ? {
-        position: "fixed",
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
-        width: "90vmin",
-        height: "90vmin",
-        zIndex: 1001,
-      }
-    : {
-        position: "relative",
-        height: "100%",
-        width: "auto",
-        maxWidth: "100%",
-        aspectRatio: "1 / 1",
-        margin: "0 auto",
-      };
+  const wrapperStyle: React.CSSProperties = {
+    position: "relative",
+    height: "100%",
+    width: "auto",
+    maxWidth: "100%",
+    aspectRatio: "1 / 1",
+    margin: "0 auto",
+  };
 
   const avatarTilePct = (1.5 / GRID_SIZE) * 100;
 
   return (
     <>
-      {/* Backdrop when expanded */}
-      {isExpanded && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 1000,
-            background: "rgba(10,4,20,0.72)",
-            backdropFilter: "blur(4px)",
-          }}
-          onClick={() => setIsExpanded(false)}
-        />
-      )}
-
       <div style={wrapperStyle}>
         <div
           style={{
@@ -591,10 +588,39 @@ export default function BoardView({
           </div>
 
 
+          {/* Suspects layer — static images spread across rooms */}
+          <div style={{ position: "absolute", inset: 0, zIndex: 15, pointerEvents: "none" }}>
+            {SUSPECT_ROOMS.map(({ id, roomName, rowFrac, colFrac }) => {
+              const room = ROOMS.find((r) => r.name === roomName);
+              if (!room) return null;
+              const img = CAT_IMAGES[id];
+              if (!img) return null;
+              const row = room.r1 + (room.r2 - room.r1) * rowFrac;
+              const col = room.c1 + (room.c2 - room.c1) * colFrac;
+              return (
+                <img
+                  key={id}
+                  src={img}
+                  alt={id}
+                  style={{
+                    position: "absolute",
+                    top:  `${((row + 0.5) / size) * 100}%`,
+                    left: `${((col + 0.5) / size) * 100}%`,
+                    transform: "translate(-50%, -50%)",
+                    width:  `${avatarTilePct}%`,
+                    height: `${avatarTilePct}%`,
+                    objectFit: "contain",
+                    filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.45))",
+                  }}
+                />
+              );
+            })}
+          </div>
+
           {/* Avatar layer */}
           {showAvatar && (
             <div style={{ position: "absolute", inset: 0, zIndex: 20, pointerEvents: "none" }}>
-              {/* Own avatar — raspberry */}
+              {/* Own avatar — raw cat image */}
               <div
                 style={{
                   position: "absolute",
@@ -603,71 +629,58 @@ export default function BoardView({
                   transform: "translate(-50%, -50%)",
                   width:  `${avatarTilePct}%`,
                   height: `${avatarTilePct}%`,
-                  borderRadius: "50%",
-                  background: "#AA336A",
-                  border: "2.5px solid rgba(255,255,255,0.92)",
-                  boxShadow: "0 2px 8px rgba(170,51,106,0.65)",
                   transition: "top 0.1s ease, left 0.1s ease",
                 }}
-              />
-
-              {/* Other players */}
-              {Object.entries(otherPlayers)
-                .filter(([id]) => id !== mySocketId)
-                .map(([id, pos], idx) => (
-                  <div
-                    key={id}
-                    style={{
-                      position: "absolute",
-                      top:  `${((pos.row + 0.5) / GRID_SIZE) * 100}%`,
-                      left: `${((pos.col + 0.5) / GRID_SIZE) * 100}%`,
-                      transform: "translate(-50%, -50%)",
-                      width:  `${avatarTilePct}%`,
-                      height: `${avatarTilePct}%`,
-                      borderRadius: "50%",
-                      background: PLAYER_COLORS[idx % PLAYER_COLORS.length] ?? "#2ecc71",
-                      border: "2.5px solid rgba(255,255,255,0.92)",
-                      boxShadow: `0 2px 8px ${PLAYER_COLORS[idx % PLAYER_COLORS.length] ?? "#2ecc71"}99`,
-                      transition: "top 0.15s ease, left 0.15s ease",
+              >
+                {myDetectiveImage ? (
+                  <img
+                    src={myDetectiveImage}
+                    alt="your avatar"
+                    style={{ width: "100%", height: "100%", objectFit: "contain", display: "block",
+                      filter: "drop-shadow(0 2px 5px rgba(170,51,106,0.9))",
                     }}
                   />
-                ))}
+                ) : (
+                  <div style={{ width: "100%", height: "100%", background: "#AA336A", borderRadius: "50%" }} />
+                )}
+              </div>
+
+              {/* Other players — raw cat image */}
+              {Object.entries(otherPlayers)
+                .filter(([id]) => id !== mySocketId)
+                .map(([id, pos], idx) => {
+                  const img = otherPlayerImages[id];
+                  const color = PLAYER_COLORS[idx % PLAYER_COLORS.length] ?? "#2ecc71";
+                  return (
+                    <div
+                      key={id}
+                      style={{
+                        position: "absolute",
+                        top:  `${((pos.row + 0.5) / GRID_SIZE) * 100}%`,
+                        left: `${((pos.col + 0.5) / GRID_SIZE) * 100}%`,
+                        transform: "translate(-50%, -50%)",
+                        width:  `${avatarTilePct}%`,
+                        height: `${avatarTilePct}%`,
+                        transition: "top 0.15s ease, left 0.15s ease",
+                      }}
+                    >
+                      {img ? (
+                        <img
+                          src={img}
+                          alt="player avatar"
+                          style={{ width: "100%", height: "100%", objectFit: "contain", display: "block",
+                            filter: `drop-shadow(0 2px 5px ${color})`,
+                          }}
+                        />
+                      ) : (
+                        <div style={{ width: "100%", height: "100%", background: color, borderRadius: "50%" }} />
+                      )}
+                    </div>
+                  );
+                })}
             </div>
           )}
 
-          {/* Zoom toggle button */}
-          <button
-            type="button"
-            aria-label={isExpanded ? "Collapse board" : "Expand board"}
-            onClick={() => setIsExpanded((v) => !v)}
-            style={{
-              position: "absolute",
-              top: 6,
-              right: 6,
-              zIndex: 25,
-              background: "#AA336A",
-              border: "none",
-              borderRadius: 6,
-              padding: "4px 6px",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 1px 4px rgba(0,0,0,0.35)",
-            }}
-          >
-            {isExpanded ? (
-              // Collapse icon
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="white" aria-hidden>
-                <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>
-              </svg>
-            ) : (
-              // Expand icon
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="white" aria-hidden>
-                <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
-              </svg>
-            )}
-          </button>
         </div>
       </div>
     </>
