@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 
-const LENGTH = 4;
+const LENGTH = 6;
 const BUTTONS = ['A', 'B', 'C', 'D'];
 
 function randomSequence(): number[] {

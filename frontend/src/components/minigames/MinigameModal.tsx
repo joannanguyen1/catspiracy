@@ -32,7 +32,9 @@ export default function MinigameModal({ roomName, roomLabel, gameIndex, onSucces
     <div className="minigame-overlay" role="dialog" aria-modal="true" aria-labelledby="minigame-title">
       <div className="minigame-modal">
         <h3 id="minigame-title" className="minigame-title">Searching: {label}</h3>
-        <GameComponent onWin={onSuccess} onCancel={onCancel} />
+        <div className="minigame-modal-inner">
+          <GameComponent onWin={onSuccess} onCancel={onCancel} />
+        </div>
       </div>
     </div>
   );

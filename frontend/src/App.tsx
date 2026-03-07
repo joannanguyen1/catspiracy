@@ -5,6 +5,7 @@ import tralalerGif from './assets/Tralelo idling.gif';
 import BoardView from './components/BoardView';
 import CatIcon from './components/CatIcon';
 import MinigameModal from './components/minigames/MinigameModal';
+import DinoRun from './components/minigames/DinoRun';
 import { getCatDisplayName, getCatImage, DETECTIVE_CHARACTERS, type DetectiveCharacter } from './constants/cats';
 
 const getSocketUrl = () => {
@@ -15,10 +16,10 @@ const getSocketUrl = () => {
 };
 const socket = io(getSocketUrl());
 
-type LobbyPlayer = { id: string; name: string };
+type LobbyPlayer = { id: string; name: string; connected?: boolean };
 
 type GameStartedPayload = {
-  status: 'playing';
+  status: 'playing' | 'final_round';
   players: { id: number; socketId: string; name: string }[];
   currentTurnSocketId: string;
   remainingSeconds: number;
@@ -26,6 +27,23 @@ type GameStartedPayload = {
   cluesCollectedCount: number;
   roomsCollected?: string[];
   clueRoomNames?: string[];
+};
+
+type RejoinSuccessPayload = {
+  status: 'lobby' | 'playing' | 'final_round';
+  gameCode?: string;
+  playerName?: string;
+  isHost?: boolean;
+  players?: { id: number; socketId: string; name: string }[];
+  currentTurnSocketId?: string;
+  remainingSeconds?: number;
+  catIds?: string[];
+  cluesCollectedCount?: number;
+  roomsCollected?: string[];
+  clueRoomNames?: string[];
+  eliminatedCatIds?: string[];
+  finalRoundSuspects?: string[];
+  remainingSuspectsAfterFinal?: string[];
 };
 
 type LostPayload = {
@@ -45,7 +63,7 @@ function App() {
   const [players, setPlayers] = useState<LobbyPlayer[]>([]);
   const [joinError, setJoinError] = useState('');
   const [startError, setStartError] = useState('');
-  const [gameStatus, setGameStatus] = useState<'lobby' | 'intro' | 'playing' | 'lost' | 'won'>('lobby');
+  const [gameStatus, setGameStatus] = useState<'lobby' | 'intro' | 'playing' | 'final_round' | 'lost' | 'won'>('lobby');
   const [selectedDetective, setSelectedDetective] = useState<DetectiveCharacter | null>(null);
   // socketId → detectiveId for all players currently on the intro screen
   const [detectiveSelections, setDetectiveSelections] = useState<Record<string, string>>({});
@@ -54,8 +72,11 @@ function App() {
   const [winPayload, setWinPayload] = useState<{ murdererCatId: string; voterName: string } | null>(null);
   const [lostPayload, setLostPayload] = useState<LostPayload | null>(null);
   const [minigameOpen, setMinigameOpen] = useState<{ roomName: string; gameIndex: number } | null>(null);
+  const [finalMinigameOpen, setFinalMinigameOpen] = useState(false);
   const [otherPlayers, setOtherPlayers] = useState<Record<string, { row: number; col: number }>>({});
   const [eliminatedCatIds, setEliminatedCatIds] = useState<string[]>([]);
+  const [finalRoundSuspects, setFinalRoundSuspects] = useState<string[] | null>(null);
+  const [remainingSuspectsAfterFinal, setRemainingSuspectsAfterFinal] = useState<string[] | null>(null);
 
   const resetToLobby = () => {
     setGameJoined(false);
@@ -73,6 +94,9 @@ function App() {
     setOtherPlayers({});
     setSelectedDetective(null);
     setDetectiveSelections({});
+    setFinalRoundSuspects(null);
+    setRemainingSuspectsAfterFinal(null);
+    setFinalMinigameOpen(false);
   };
 
   useEffect(() => {
@@ -103,9 +127,44 @@ function App() {
     socket.on('join_error', (data: { message: string }) => {
       setJoinError(data.message ?? 'Failed to join');
     });
+    socket.on('rejoin_success', (data: RejoinSuccessPayload) => {
+      setJoinError('');
+      setMyGameCode(data.gameCode ?? '');
+      setGameJoined(true);
+      if (data.isHost !== undefined) setIsHost(data.isHost);
+      if (data.playerName) setPlayerName(data.playerName);
+      if (data.status === 'lobby') {
+        setGameStatus('lobby');
+        setGameState(null);
+        setFinalRoundSuspects(null);
+        setRemainingSuspectsAfterFinal(null);
+        return;
+      }
+      setGameState({
+        status: data.status,
+        players: data.players ?? [],
+        currentTurnSocketId: data.currentTurnSocketId ?? '',
+        remainingSeconds: data.remainingSeconds ?? 0,
+        catIds: data.catIds ?? [],
+        cluesCollectedCount: data.cluesCollectedCount ?? 0,
+        roomsCollected: data.roomsCollected ?? [],
+        clueRoomNames: data.clueRoomNames ?? [],
+      });
+      setEliminatedCatIds(data.eliminatedCatIds ?? []);
+      setFinalRoundSuspects(data.finalRoundSuspects ?? null);
+      setRemainingSuspectsAfterFinal(data.remainingSuspectsAfterFinal ?? null);
+      setGameLog('🐾 You have reconnected. Game in progress.\n');
+      setGameStatus(data.status === 'final_round' ? 'final_round' : 'playing');
+      if (data.status === 'final_round') setFinalMinigameOpen(true);
+    });
+    socket.on('rejoin_error', () => {
+      // Fall through to normal join is handled in joinGame
+    });
     socket.on('game_started', (data: GameStartedPayload) => {
-      setGameState({ ...data, roomsCollected: data.roomsCollected ?? [] });
+      setGameState({ ...data, roomsCollected: data.roomsCollected ?? [], status: 'playing' });
       setEliminatedCatIds([]);
+      setFinalRoundSuspects(null);
+      setRemainingSuspectsAfterFinal(null);
       setStartError('');
       setGameLog('🐾 Game started! Walk your avatar into rooms to find clues.\n');
       setGameStatus('intro');
@@ -135,6 +194,28 @@ function App() {
         );
       }
       setGameLog((log) => log + data.logMessage + '\n');
+    });
+    socket.on('final_round_start', (data: { finalTwoSuspects: string[]; logMessage?: string }) => {
+      setFinalRoundSuspects(data.finalTwoSuspects ?? null);
+      setGameStatus('final_round');
+      setFinalMinigameOpen(true);
+      if (data.logMessage) setGameLog((log) => log + data.logMessage + '\n');
+    });
+    socket.on('final_round_complete', (data: {
+      remainingSuspects: string[];
+      eliminatedCatId: string;
+      logMessage?: string;
+    }) => {
+      setRemainingSuspectsAfterFinal(data.remainingSuspects ?? null);
+      if (data.eliminatedCatId) {
+        setEliminatedCatIds((prev) =>
+          prev.includes(data.eliminatedCatId) ? prev : [...prev, data.eliminatedCatId]
+        );
+      }
+      setFinalRoundSuspects(null);
+      setFinalMinigameOpen(false);
+      setGameStatus('playing');
+      if (data.logMessage) setGameLog((log) => log + data.logMessage + '\n');
     });
     socket.on('clue_error', (data: { message: string }) => {
       setGameLog((log) => log + `(Error: ${data.message})\n`);
@@ -179,6 +260,8 @@ function App() {
       socket.off('game_created');
       socket.off('join_success');
       socket.off('join_error');
+      socket.off('rejoin_success');
+      socket.off('rejoin_error');
       socket.off('game_started');
       socket.off('start_error');
       socket.off('timer_update');
@@ -187,6 +270,8 @@ function App() {
       socket.off('vote_error');
       socket.off('clue_found');
       socket.off('clue_error');
+      socket.off('final_round_start');
+      socket.off('final_round_complete');
       socket.off('player_moved');
       socket.off('player_left');
       socket.off('detective_selections');
@@ -203,9 +288,15 @@ function App() {
   const joinGame = () => {
     if (playerName.trim() && gameCode.trim()) {
       setJoinError('');
-      socket.emit('join_game', {
+      socket.emit('rejoin_game', {
         gameCode: gameCode.trim().toUpperCase(),
         playerName: playerName.trim(),
+      });
+      socket.once('rejoin_error', () => {
+        socket.emit('join_game', {
+          gameCode: gameCode.trim().toUpperCase(),
+          playerName: playerName.trim(),
+        });
       });
     }
   };
@@ -302,7 +393,9 @@ function App() {
           <ul className="players-list">
             {players.map((p) => (
               <li key={p.id}>
-                {p.name} {isHost && p.id === socket.id ? '(you, host)' : ''}
+                {p.name}
+                {p.connected === false ? ' (disconnected)' : ''}
+                {isHost && p.id === socket.id ? ' (you, host)' : ''}
               </li>
             ))}
           </ul>
@@ -311,9 +404,9 @@ function App() {
               type="button"
               className="btn-start"
               onClick={startGame}
-              disabled={players.length < 2}
+              disabled={players.filter((p) => p.connected !== false).length < 2}
             >
-              Start game {players.length < 2 ? '(need 2+ players)' : ''}
+              Start game {players.filter((p) => p.connected !== false).length < 2 ? '(need 2+ connected)' : ''}
             </button>
           )}
           {!isHost && (
@@ -510,11 +603,24 @@ function App() {
     );
   }
 
-  // ——— Playing: header + panels (suspects | map | objectives + log) ———
-  if (gameStatus === 'playing' && gameState) {
+  // ——— Playing (or final round): header + panels ———
+  if ((gameStatus === 'playing' || gameStatus === 'final_round') && gameState) {
     const isMyTurn = gameState.currentTurnSocketId === socket.id;
     const minutes = Math.floor(gameState.remainingSeconds / 60);
     const seconds = gameState.remainingSeconds % 60;
+
+    const displaySuspects =
+      remainingSuspectsAfterFinal?.length
+        ? remainingSuspectsAfterFinal
+        : finalRoundSuspects?.length
+          ? finalRoundSuspects
+          : gameState.catIds;
+    const isEliminated = (id: string) =>
+      remainingSuspectsAfterFinal?.length
+        ? !remainingSuspectsAfterFinal.includes(id)
+        : finalRoundSuspects?.length
+          ? !finalRoundSuspects.includes(id)
+          : eliminatedCatIds.includes(id);
 
     // Map each socketId to its chosen detective's image for board avatars
     const otherPlayerImages: Record<string, string> = {};
@@ -529,6 +635,11 @@ function App() {
         <header className="game-header">
           <span>CATSPIRACY</span>
           <div className="game-header-right">
+            {gameStatus === 'final_round' && (
+              <span className="clues-badge" style={{ marginRight: 8 }}>
+                Final round
+              </span>
+            )}
             <span className={`game-timer${gameState.remainingSeconds <= 30 ? ' low-time' : ''}`}>
               {minutes}:{seconds.toString().padStart(2, '0')}
             </span>
@@ -538,9 +649,14 @@ function App() {
         <main className="game-main">
           <section className="game-panel suspects">
             <h3>Suspects</h3>
+            {gameStatus === 'final_round' && !finalMinigameOpen && (
+              <p className="suspects-note" style={{ marginBottom: 8 }}>
+                Complete the final challenge below to narrow the suspects to one.
+              </p>
+            )}
             <div className="suspects-list">
-              {gameState.catIds.map((id) => {
-                const eliminated = eliminatedCatIds.includes(id);
+              {displaySuspects.map((id) => {
+                const eliminated = isEliminated(id);
                 return (
                   <div
                     key={id}
@@ -617,6 +733,24 @@ function App() {
                 onCancel={() => setMinigameOpen(null)}
               />
             )}
+            {finalMinigameOpen && (
+              <div className="minigame-overlay" role="dialog" aria-modal="true" aria-labelledby="final-minigame-title">
+                <div className="minigame-modal">
+                  <h3 id="final-minigame-title" className="minigame-title">Catch the murderer!</h3>
+                  <div className="minigame-modal-inner">
+                    <DinoRun
+                      targetScore={100}
+                      runnerImage={selectedDetective?.image}
+                      onWin={() => {
+                        socket.emit('final_minigame_complete');
+                        setFinalMinigameOpen(false);
+                      }}
+                      onCancel={() => setFinalMinigameOpen(false)}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
             <p className="map-instruction">
               Walk your avatar into a room to search it for clues.
             </p>
@@ -634,11 +768,27 @@ function App() {
           <div className="game-right">
             <section className="game-panel objectives">
               <h3>Current Objective</h3>
-              <ul>
-                <li>Find 4 clues ({gameState.cluesCollectedCount}/4) to eliminate suspects</li>
-                <li>Identify the murderer before time runs out</li>
-                <li>A wrong accusation ends the game immediately</li>
-              </ul>
+              {gameStatus === 'final_round' ? (
+                <>
+                  <p style={{ marginBottom: 8 }}>All 4 clues found. Complete the final challenge to narrow suspects to one.</p>
+                  {!finalMinigameOpen && (
+                    <button
+                      type="button"
+                      className="accuse-btn"
+                      style={{ width: '100%' }}
+                      onClick={() => setFinalMinigameOpen(true)}
+                    >
+                      Complete final challenge
+                    </button>
+                  )}
+                </>
+              ) : (
+                <ul>
+                  <li>Find 4 clues ({gameState.cluesCollectedCount}/4) to eliminate suspects</li>
+                  <li>Identify the murderer before time runs out</li>
+                  <li>A wrong accusation ends the game immediately</li>
+                </ul>
+              )}
             </section>
 
             <section className="game-panel log-panel">

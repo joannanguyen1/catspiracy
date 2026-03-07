@@ -18,10 +18,17 @@ app.use(express.json());
 
 const socketToGame = new Map<string, string>();
 
+/** When a player disconnects we set their socketId to this so they can rejoin by code + name. */
+const DISCONNECTED_SOCKET_ID = '__disconnected__';
+
 type GameTimer = { remainingSeconds: number; intervalId: ReturnType<typeof setInterval> };
 const gameTimers = new Map<string, GameTimer>();
 
 const gameDetectiveSelections = new Map<string, Map<string, string>>();
+
+/** During final round: gameCode -> [catId1, catId2]. After final minigame: gameCode -> single remaining (murderer). */
+const gameFinalTwoSuspects = new Map<string, string[]>();
+const gameRemainingSuspectAfterFinal = new Map<string, string>();
 
 function stopGameTimer(gameCode: string) {
   const timer = gameTimers.get(gameCode);
@@ -116,8 +123,9 @@ async function broadcastLobbyToRoom(gameCode: string) {
   });
   if (!game) return;
   const players = game.players.map((p) => ({
-    id: p.socketId,
+    id: p.socketId === DISCONNECTED_SOCKET_ID ? `disconnected:${p.id}` : p.socketId,
     name: p.playerName,
+    connected: p.socketId !== DISCONNECTED_SOCKET_ID,
   }));
   io.to(getRoom(gameCode)).emit('lobby_update', { players });
 }
@@ -189,13 +197,14 @@ io.on('connection', (socket) => {
         socket.emit('start_error', { message: 'Only the host can start the game' });
         return;
       }
-      if (game.players.length < 2) {
-        socket.emit('start_error', { message: 'Need at least 2 players to start' });
+      const connectedPlayers = game.players.filter((p) => p.socketId !== DISCONNECTED_SOCKET_ID);
+      if (connectedPlayers.length < 2) {
+        socket.emit('start_error', { message: 'Need at least 2 players connected to start' });
         return;
       }
       const murdererCatId =
         CAT_IDS[Math.floor(Math.random() * CAT_IDS.length)] as string;
-      const firstPlayer = game.players[0];
+      const firstPlayer = connectedPlayers[0];
       if (!firstPlayer) {
         socket.emit('start_error', { message: 'No players' });
         return;
@@ -251,6 +260,8 @@ io.on('connection', (socket) => {
         });
         if (t.remainingSeconds <= 0) {
           stopGameTimer(gameCode);
+          gameFinalTwoSuspects.delete(gameCode);
+          gameRemainingSuspectAfterFinal.delete(gameCode);
           await prisma.game.update({
             where: { id: game.id },
             data: { status: 'lost', endedAt: new Date(), remainingSeconds: 0 },
@@ -266,6 +277,93 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('rejoin_game', async (data: { gameCode?: string; playerName?: string }) => {
+    try {
+      const gameCode = (data?.gameCode || '').trim().toUpperCase();
+      const playerName = (data?.playerName || 'Anonymous').trim().slice(0, 32);
+      if (!gameCode || !playerName) {
+        socket.emit('rejoin_error', { message: 'Game code and name required' });
+        return;
+      }
+      const game = await prisma.game.findUnique({
+        where: { code: gameCode },
+        include: { players: { orderBy: { id: 'asc' } }, clueDiscoveries: true },
+      });
+      if (!game) {
+        socket.emit('rejoin_error', { message: 'Game not found' });
+        return;
+      }
+      if (game.status === 'won' || game.status === 'lost') {
+        socket.emit('rejoin_error', { message: 'Game has ended' });
+        return;
+      }
+      const player = game.players.find(
+        (p) => p.playerName === playerName && p.socketId === DISCONNECTED_SOCKET_ID
+      );
+      if (!player) {
+        socket.emit('rejoin_error', { message: 'No disconnected player with that name in this game' });
+        return;
+      }
+      await prisma.player.update({
+        where: { id: player.id },
+        data: { socketId: socket.id },
+      });
+      socketToGame.set(socket.id, gameCode);
+      socket.join(getRoom(gameCode));
+
+      const assignment = gameClueAssignments.get(gameCode);
+      const roomsCollected = game.clueDiscoveries.map((d) => d.roomName);
+      const eliminatedFromClues = assignment
+        ? roomsCollected.map((r) => assignment.roomToCatId[r]).filter(Boolean)
+        : [];
+
+      if (game.status === 'lobby') {
+        socket.emit('rejoin_success', {
+          gameCode,
+          playerName,
+          status: 'lobby',
+          isHost: game.hostPlayerId === player.id,
+        });
+        await broadcastLobbyToRoom(gameCode);
+        console.log('Player rejoined lobby:', gameCode, playerName);
+        return;
+      }
+
+      const currentTurn = game.players.find((p) => p.id === game.currentTurnPlayerId);
+      const timer = gameTimers.get(gameCode);
+      const remainingSeconds = timer?.remainingSeconds ?? game.remainingSeconds ?? 0;
+      const clueRoomNames = assignment?.clueRoomNames ?? [];
+      const finalTwo = gameFinalTwoSuspects.get(gameCode);
+      const remainingAfterFinal = gameRemainingSuspectAfterFinal.get(gameCode);
+
+      const payload = {
+        status: game.status as 'playing' | 'final_round',
+        gameCode,
+        playerName,
+        isHost: game.hostPlayerId === player.id,
+        players: game.players.map((p) => ({
+          id: p.id,
+          socketId: p.socketId,
+          name: p.playerName,
+        })),
+        currentTurnSocketId: currentTurn?.socketId ?? game.players[0]?.socketId ?? '',
+        remainingSeconds,
+        catIds: [...CAT_IDS],
+        cluesCollectedCount: roomsCollected.length,
+        roomsCollected,
+        clueRoomNames,
+        eliminatedCatIds: eliminatedFromClues,
+        finalRoundSuspects: finalTwo ?? undefined,
+        remainingSuspectsAfterFinal: remainingAfterFinal ? [remainingAfterFinal] : undefined,
+      };
+      socket.emit('rejoin_success', payload);
+      console.log('Player rejoined game:', gameCode, playerName);
+    } catch (err) {
+      console.error('rejoin_game error:', err);
+      socket.emit('rejoin_error', { message: 'Failed to rejoin' });
+    }
+  });
+
   socket.on('join_game', async (data: { gameCode?: string; playerName?: string }) => {
     try {
       const gameCode = (data?.gameCode || '').trim().toUpperCase();
@@ -273,9 +371,15 @@ io.on('connection', (socket) => {
 
       const game = await prisma.game.findUnique({
         where: { code: gameCode },
+        include: { players: true },
       });
       if (!game || game.status !== 'lobby') {
         socket.emit('join_error', { message: 'Invalid game code' });
+        return;
+      }
+      const existingSameName = game.players.some((p) => p.playerName === playerName);
+      if (existingSameName) {
+        socket.emit('join_error', { message: 'A player with that name is already in this game. Use the same name and click Join to rejoin if you disconnected.' });
         return;
       }
 
@@ -375,9 +479,61 @@ io.on('connection', (socket) => {
         logMessage,
         eliminatedCatId,
       });
+
+      if (cluesCount === 4) {
+        const eliminatedFromClues = roomsCollected.map((r) => assignment.roomToCatId[r]).filter(Boolean);
+        const finalTwoSuspects = CAT_IDS.filter((id) => !eliminatedFromClues.includes(id));
+        gameFinalTwoSuspects.set(gameCode, finalTwoSuspects);
+        await prisma.game.update({
+          where: { id: game.id },
+          data: { status: 'final_round' },
+        });
+        io.to(getRoom(gameCode)).emit('final_round_start', {
+          finalTwoSuspects,
+          logMessage: '🔎 All four clues found! Complete the final challenge to narrow the suspects to one.',
+        });
+      }
     } catch (err) {
       console.error('collect_clue error:', err);
       socket.emit('clue_error', { message: 'Failed to collect clue' });
+    }
+  });
+
+  socket.on('final_minigame_complete', async () => {
+    try {
+      const gameCode = socketToGame.get(socket.id);
+      if (!gameCode) return;
+      const game = await prisma.game.findUnique({
+        where: { code: gameCode },
+      });
+      if (!game || game.status !== 'final_round') {
+        socket.emit('final_minigame_error', { message: 'Not in final round' });
+        return;
+      }
+      const player = await prisma.player.findFirst({
+        where: { gameId: game.id, socketId: socket.id },
+      });
+      if (!player) return;
+      const twoSuspects = gameFinalTwoSuspects.get(gameCode);
+      if (!twoSuspects || twoSuspects.length !== 2) return;
+      const murdererCatId = game.murdererCatId ?? '';
+      const eliminated = twoSuspects.find((id) => id !== murdererCatId) ?? twoSuspects[0] ?? '';
+      const remaining = murdererCatId;
+      gameFinalTwoSuspects.delete(gameCode);
+      gameRemainingSuspectAfterFinal.set(gameCode, remaining);
+      await prisma.game.update({
+        where: { id: game.id },
+        data: { status: 'playing' },
+      });
+      const eliminatedName = eliminated ? (CAT_DISPLAY_NAMES[eliminated] ?? eliminated) : 'A suspect';
+      io.to(getRoom(gameCode)).emit('final_round_complete', {
+        remainingSuspects: [remaining],
+        eliminatedCatId: eliminated,
+        logMessage: `✅ Final challenge complete! ${eliminatedName} has been cleared. One suspect remains.`,
+      });
+    } catch (err) {
+      console.error('final_minigame_complete error:', err);
+      socket.emit('final_minigame_error', { message: 'Failed to complete' });
     }
   });
 
@@ -409,6 +565,8 @@ io.on('connection', (socket) => {
       const murdererCatId = game.murdererCatId ?? '';
       if (catId === murdererCatId) {
         stopGameTimer(gameCode);
+        gameFinalTwoSuspects.delete(gameCode);
+        gameRemainingSuspectAfterFinal.delete(gameCode);
         await prisma.game.update({
           where: { id: game.id },
           data: { status: 'won', endedAt: new Date(), remainingSeconds: 0 },
@@ -422,6 +580,8 @@ io.on('connection', (socket) => {
       }
       // Wrong accusation = instant game over
       stopGameTimer(gameCode);
+      gameFinalTwoSuspects.delete(gameCode);
+      gameRemainingSuspectAfterFinal.delete(gameCode);
       await prisma.game.update({
         where: { id: game.id },
         data: { status: 'lost', endedAt: new Date(), remainingSeconds: 0 },
@@ -484,22 +644,27 @@ io.on('connection', (socket) => {
           include: { game: true },
         });
         if (player) {
-          await prisma.player.delete({ where: { id: player.id } });
+          await prisma.player.update({
+            where: { id: player.id },
+            data: { socketId: DISCONNECTED_SOCKET_ID },
+          });
           io.to(getRoom(gameCode)).emit('player_left', {
             id: socket.id,
             name: player.playerName,
           });
           await broadcastLobbyToRoom(gameCode);
 
-          const remaining = await prisma.player.count({
-            where: { gameId: player.gameId },
+          const connectedCount = await prisma.player.count({
+            where: { gameId: player.gameId, socketId: { not: DISCONNECTED_SOCKET_ID } },
           });
-          if (remaining === 0) {
+          if (connectedCount === 0) {
             stopGameTimer(gameCode);
             gameClueAssignments.delete(gameCode);
             gameDetectiveSelections.delete(gameCode);
+            gameFinalTwoSuspects.delete(gameCode);
+            gameRemainingSuspectAfterFinal.delete(gameCode);
             await prisma.game.delete({ where: { id: player.gameId } });
-            console.log('Game ended:', gameCode);
+            console.log('Game ended (no players connected):', gameCode);
           }
         }
       } catch (err) {
