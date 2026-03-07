@@ -7,11 +7,13 @@ import CatIcon from './components/CatIcon';
 import MinigameModal from './components/minigames/MinigameModal';
 import { getCatDisplayName, getCatAvatarColor, getCatInitial, getCatImage, DETECTIVE_CHARACTERS, type DetectiveCharacter } from './constants/cats';
 
-const socket = io(
-  typeof window !== 'undefined'
-    ? `${window.location.protocol}//${window.location.hostname}:3001`
-    : 'http://localhost:3001'
-);
+const getSocketUrl = () => {
+  if (typeof window === 'undefined') return 'http://localhost:3001';
+  const env = import.meta.env.VITE_SOCKET_URL;
+  if (env && typeof env === 'string' && env.trim()) return env.trim();
+  return `${window.location.protocol}//${window.location.hostname}:3001`;
+};
+const socket = io(getSocketUrl());
 
 type LobbyPlayer = { id: string; name: string };
 
