@@ -26,6 +26,9 @@ const gameTimers = new Map<string, GameTimer>();
 
 const gameDetectiveSelections = new Map<string, Map<string, string>>();
 
+/** Persistent detective choice by player ID (survives disconnect for rejoin). gameCode -> playerId -> detectiveId */
+const gamePlayerToDetective = new Map<string, Map<number, string>>();
+
 /** During final round: gameCode -> [catId1, catId2]. After final minigame: gameCode -> single remaining (murderer). */
 const gameFinalTwoSuspects = new Map<string, string[]>();
 const gameRemainingSuspectAfterFinal = new Map<string, string>();
@@ -330,23 +333,34 @@ io.on('connection', (socket) => {
       }
 
       const currentTurn = game.players.find((p) => p.id === game.currentTurnPlayerId);
+      const currentTurnSocketId =
+        currentTurn?.id === player.id ? socket.id : (currentTurn?.socketId ?? game.players[0]?.socketId ?? '');
       const timer = gameTimers.get(gameCode);
       const remainingSeconds = timer?.remainingSeconds ?? game.remainingSeconds ?? 0;
       const clueRoomNames = assignment?.clueRoomNames ?? [];
       const finalTwo = gameFinalTwoSuspects.get(gameCode);
       const remainingAfterFinal = gameRemainingSuspectAfterFinal.get(gameCode);
 
+      const playerToDetective = gamePlayerToDetective.get(gameCode);
+      const myDetectiveId = playerToDetective?.get(player.id);
+      if (myDetectiveId && gameDetectiveSelections.has(gameCode)) {
+        gameDetectiveSelections.get(gameCode)!.set(socket.id, myDetectiveId);
+        const selections = Object.fromEntries(gameDetectiveSelections.get(gameCode)!);
+        io.to(getRoom(gameCode)).emit('detective_selections', { selections });
+      }
+
       const payload = {
         status: game.status as 'playing' | 'final_round',
         gameCode,
         playerName,
         isHost: game.hostPlayerId === player.id,
+        myDetectiveId: myDetectiveId ?? undefined,
         players: game.players.map((p) => ({
           id: p.id,
-          socketId: p.socketId,
+          socketId: p.id === player.id ? socket.id : p.socketId,
           name: p.playerName,
         })),
-        currentTurnSocketId: currentTurn?.socketId ?? game.players[0]?.socketId ?? '',
+        currentTurnSocketId: currentTurnSocketId,
         remainingSeconds,
         catIds: [...CAT_IDS],
         cluesCollectedCount: roomsCollected.length,
@@ -607,7 +621,7 @@ io.on('connection', (socket) => {
     socket.to(getRoom(gameCode)).emit('player_moved', { socketId: socket.id, row, col });
   });
 
-  socket.on('select_detective', (data: { detectiveId?: string }) => {
+  socket.on('select_detective', async (data: { detectiveId?: string }) => {
     const gameCode = socketToGame.get(socket.id);
     if (!gameCode) return;
     const detectiveId = typeof data?.detectiveId === 'string' ? data.detectiveId.trim() : '';
@@ -617,6 +631,21 @@ io.on('connection', (socket) => {
       gameDetectiveSelections.set(gameCode, new Map());
     }
     gameDetectiveSelections.get(gameCode)!.set(socket.id, detectiveId);
+
+    if (!gamePlayerToDetective.has(gameCode)) {
+      gamePlayerToDetective.set(gameCode, new Map());
+    }
+    try {
+      const player = await prisma.player.findFirst({
+        where: { socketId: socket.id, game: { code: gameCode } },
+        select: { id: true },
+      });
+      if (player) {
+        gamePlayerToDetective.get(gameCode)!.set(player.id, detectiveId);
+      }
+    } catch {
+      /* ignore */
+    }
 
     const selections = Object.fromEntries(gameDetectiveSelections.get(gameCode)!);
     io.to(getRoom(gameCode)).emit('detective_selections', { selections });
@@ -661,6 +690,7 @@ io.on('connection', (socket) => {
             stopGameTimer(gameCode);
             gameClueAssignments.delete(gameCode);
             gameDetectiveSelections.delete(gameCode);
+            gamePlayerToDetective.delete(gameCode);
             gameFinalTwoSuspects.delete(gameCode);
             gameRemainingSuspectAfterFinal.delete(gameCode);
             await prisma.game.delete({ where: { id: player.gameId } });

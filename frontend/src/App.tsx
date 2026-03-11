@@ -34,6 +34,7 @@ type RejoinSuccessPayload = {
   gameCode?: string;
   playerName?: string;
   isHost?: boolean;
+  myDetectiveId?: string;
   players?: { id: number; socketId: string; name: string }[];
   currentTurnSocketId?: string;
   remainingSeconds?: number;
@@ -153,6 +154,10 @@ function App() {
       setEliminatedCatIds(data.eliminatedCatIds ?? []);
       setFinalRoundSuspects(data.finalRoundSuspects ?? null);
       setRemainingSuspectsAfterFinal(data.remainingSuspectsAfterFinal ?? null);
+      if (data.myDetectiveId) {
+        const detective = DETECTIVE_CHARACTERS.find((c) => c.id === data.myDetectiveId);
+        if (detective) setSelectedDetective(detective);
+      }
       setGameLog('🐾 You have reconnected. Game in progress.\n');
       setGameStatus(data.status === 'final_round' ? 'final_round' : 'playing');
       if (data.status === 'final_round') setFinalMinigameOpen(true);
